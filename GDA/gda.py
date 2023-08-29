@@ -2,11 +2,16 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+import os
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
+
 plt.style.use('ggplot')
 
 
 X = pd.read_csv("../Data/q4x.dat",delimiter="\s+",header=None)
 Y = pd.read_csv("../Data/q4y.dat",delimiter="\s+",header=None)
+
 
 x1 = np.array(X[0])
 x2 = np.array(X[1])
@@ -28,11 +33,9 @@ y_alaska = np.array(y_alaska)
 mu_0 = np.dot(y_alaska.T, x_data) /np.sum(y_alaska)
 mu_1 = np.dot(y_canada.T, x_data) /np.sum(y_canada)
 
-
 Alaska_temp = (x_data - mu_0)*np.column_stack((y_alaska,y_alaska))
 Canada_temp = (x_data - mu_1)*np.column_stack((y_canada,y_canada))
 cov_mat = (np.dot(Alaska_temp.T,Alaska_temp) +  np.dot(Canada_temp.T,Canada_temp))/len(y_data)
-
 
 print(f"Mu_0 is {mu_0}")
 print(f"Mu_1 is {mu_1}")
@@ -58,9 +61,24 @@ trace_1 = go.Scatter(x=x1[y_canada == 1], y=x2[y_canada == 1], mode='markers', m
 layout = go.Layout(title='Data visualised', xaxis_title='X1', yaxis_title='X2')
 fig = go.Figure(data=[trace_0, trace_1], layout=layout)
 
-fig.write_html('data_visualised.html')
+fig.write_html('Plotly/data_visualised.html')
 
 # fig.show()
+
+fig,ax = plt.subplots(figsize=(20, 20))
+ax.set_aspect('equal')
+
+plt.scatter(x=x1[y_canada == 0], y=x2[y_canada == 0], label='Alaska', color='blue', marker='o')
+plt.scatter(x=x1[y_canada == 1], y=x2[y_canada == 1], label='Canada', color='red', marker='x')
+
+plt.xlabel("X1")
+plt.ylabel("X2")
+plt.title("Visualising data and gaussian density contours") 
+plt.legend()
+plt.savefig('Plots/only_data.png', dpi=300, bbox_inches='tight')
+# plt.show()
+# 
+
 
 from scipy.stats import multivariate_normal
 
@@ -88,17 +106,15 @@ plt.xlabel("X1")
 plt.ylabel("X2")
 plt.title("Visualising data and gaussian density contours") 
 plt.legend()
-plt.savefig('Plots/linear_visualised.png', dpi=300, bbox_inches='tight')
+plt.savefig('Plots/gauss_visual.png', dpi=300, bbox_inches='tight')
 # plt.show()
-# 
+
 
 cov_inv = np.linalg.inv(cov_mat)
 
 w = np.dot((mu_0-mu_1).T, cov_inv)
 c = (np.dot(np.dot(mu_1.T,cov_inv),mu_1) - np.dot(np.dot(mu_0.T,cov_inv),mu_0))/2
-
-
-
+# 
 
 fig,ax = plt.subplots(figsize=(20, 20))
 ax.set_aspect('equal')
@@ -120,13 +136,14 @@ plt.xlabel("X1")
 plt.ylabel("X2")
 plt.title("Visualising data and gaussian density contours") 
 plt.legend()
-plt.savefig('Plots/linear_visualised_with_gda.png', dpi=300, bbox_inches='tight')
+plt.savefig('Plots/gauss_visual_with_linear.png', dpi=300, bbox_inches='tight')
 # plt.show()
+
 
 cov_mat_alaska = (np.dot(Alaska_temp.T,Alaska_temp))/np.sum(y_alaska)
 
-
 cov_mat_canada = (np.dot(Canada_temp.T,Canada_temp))/np.sum(y_canada)
+
 
 
 cov_mat_alaska_inv = np.linalg.inv(cov_mat_alaska)
@@ -150,6 +167,7 @@ def f(X,Y):
         
         
         
+
 x, y = np.mgrid[-3.0:3.0:100j, -3.0:3.0:100j]
 xy = np.column_stack([x.flat, y.flat])
 
@@ -174,8 +192,8 @@ x = np.arange(-3.0,3.0,0.01)
 y = np.arange(-3.0,3.0,0.01)
 
 X, Y = np.meshgrid(x,y)
-CS = plt.contour(x, y, f(X, Y), levels=[0], colors='green', linewidths=2, label='Decision Boundary')
-CS.collections[0].set_label("Quadratic Seperator")
+CS = plt.contour(x, y, f(X, Y), levels=[0], colors='green', linewidths=2)
+# CS.collections[0].set_label("Quadratic Seperator")
 
 x_fit = np.linspace(-2, 2, 200)
 gda = -(w[0]*x_fit + c)/w[1]
@@ -187,5 +205,5 @@ plt.xlabel("X1")
 plt.ylabel("X2")
 plt.title("Visualising data and gaussian density contours") 
 plt.legend()
-plt.savefig('Plots/linear_visualised_with_gda.png', dpi=300, bbox_inches='tight')
+plt.savefig('Plots/gauss_visual_with_linear_and_quad.png', dpi=300, bbox_inches='tight')
 # plt.show()

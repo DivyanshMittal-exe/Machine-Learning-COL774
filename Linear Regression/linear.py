@@ -7,6 +7,11 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.animation import FuncAnimation
 from matplotlib import cm
 
+import os
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
+
+
 
 
 df_x = pd.read_csv("./../Data/linearX.csv", header=None)
@@ -133,7 +138,7 @@ plt.savefig("Plots/3d_plot_and_cost.png",dpi=500)
 for neta in [0.001, 0.025, 0.1,1.5]:
     theta_initial,animation_data_subset = perform_linear_regression(eta=neta,threshold=1e-10)
     
-    animation_data_subset = animation_data_subset[0::(len(animation_data_subset)//100)]
+    # animation_data_subset = animation_data_subset[0::(len(animation_data_subset)//100)]
     
     fig,ax = plt.subplots(figsize=(20, 20))
     CS = ax.contour(X, Y, Z, extend='both',linewidths=3,levels=[0.01,0.1,0.2,0.5,1,2,3,4,5])
