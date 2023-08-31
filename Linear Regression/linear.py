@@ -125,13 +125,14 @@ plt.title('Loss function for linear regression')
 # plt.legend(loc="upper left")
 
 gif = FuncAnimation(fig, update1, frames=100, interval=200)
-gif.save('Animation/3d_lost_plot.gif', dpi=90, writer='imagemagick')
+gif.save('Animation/3d_lost_plot.gif', dpi=50, writer='imagemagick')
 
 # plt.legend()
 
-plt.savefig("Plots/3d_plot_and_cost.png",dpi=500)
+plt.savefig("Plots/3d_plot_and_cost.png",dpi=200)
 
 # plt.show()
+
 
 
 
@@ -172,7 +173,7 @@ for neta in [0.001, 0.025, 0.1,1.5]:
     gif.save(f'Animation/contour_graph_{neta}.gif', dpi=90, writer='imagemagick')
 
 
-    plt.savefig(f"Plots/plot_contour_{neta}.png",dpi=500)
+    plt.savefig(f"Plots/plot_contour_{neta}.png",dpi=200)
 
     # plt.show()
 
