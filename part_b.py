@@ -1,117 +1,261 @@
-'''
-This is started code for part b and c. 
-Using this code is OPTIONAL and you may write code from scratch if you want
-'''
-
-
-from sklearn.preprocessing import OrdinalEncoder, OneHotEncoder
-import pandas as pd
+# %%
 import numpy as np
+from abc import ABC, abstractmethod
+import numpy as np 
+import sys
+import pdb
+from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import classification_report
+import matplotlib.pyplot as plt 
+from sklearn.preprocessing import OneHotEncoder
 
-label_encoder = None 
+from sklearn.metrics import precision_recall_fscore_support
 
-def get_np_array(file_name):
-    global label_encoder
-    data = pd.read_csv(file_name)
+
+# %%
+def get_data(x_path, y_path):
+    '''
+    Args:
+        x_path: path to x file
+        y_path: path to y file
+    Returns:
+        x: np array of [NUM_OF_SAMPLES x n]
+        y: np array of [NUM_OF_SAMPLES]
+    '''
+    x = np.load(x_path)
+    y = np.load(y_path)
+
+    y = y.astype('float')
+    x = x.astype('float')
+
+    #normalize x:
+    x = 2*(0.5 - x/255)
+    return x, y
+
+def get_metric(y_true, y_pred):
+    '''
+    Args:
+        y_true: np array of [NUM_SAMPLES x r] (one hot) 
+                or np array of [NUM_SAMPLES]
+        y_pred: np array of [NUM_SAMPLES x r] (one hot) 
+                or np array of [NUM_SAMPLES]
+                
+    '''
+    results = classification_report(y_pred, y_true)
+    print(results)
+
+# %%
+class BaseLayer(ABC):
+    def __init__(self, input_size, output_size):
+        self.weights =  np.random.normal(0, 0.01, (input_size + 1, output_size)) # Includes bias
+        self.input = None
+        self.output = None
+        # self.bias = np.random.rand(output_size, 1)
     
-    need_label_encoding = ['team','host','opp','month', 'day_match']
-    if(label_encoder is None):
-        label_encoder = OneHotEncoder(sparse_output = False)
-        label_encoder.fit(data[need_label_encoding])
-    data_1 = pd.DataFrame(label_encoder.transform(data[need_label_encoding]), columns = label_encoder.get_feature_names_out())
+    @abstractmethod
+    def activation(self, input):
+        pass
     
-    #merge the two dataframes
-    dont_need_label_encoding =  ["year","toss","bat_first","format" ,"fow","score" ,"rpo" ,"result"]
-    data_2 = data[dont_need_label_encoding]
-    final_data = pd.concat([data_1, data_2], axis=1)
-    
-    X = final_data.iloc[:,:-1]
-    y = final_data.iloc[:,-1:]
-    return X.to_numpy(), y.to_numpy()
-
-
-
-class DTNode:
-
-    def __init__(self, depth, is_leaf = False, value = 0, column = None):
-
-        #to split on column
-        self.depth = depth
-
-        #add children afterwards
-        self.children = None
-
-        #if leaf then also need value
-        self.is_leaf = is_leaf
-        if(self.is_leaf):
-            self.value = value
+    def forward(self, input):
+        input_data_with_bias = np.hstack((np.ones((input.shape[0],1)), input))
+        self.input = input_data_with_bias
         
-        if(not self.is_leaf):
-            self.column = column
+        z = np.dot(input_data_with_bias, self.weights)
+        
+        self.output = self.activation(z)
+        
+        # activation = 1/(1+np.exp(-(np.dot(input_data_with_bias, self.weights))))
+        return self.output
 
+    @abstractmethod
+    def backward(self, grad_output, learning_rate):
+        pass
 
-    def get_children(self, X):
-        '''
-        Args:
-            X: A single example np array [num_features]
-        Returns:
-            child: A DTNode
-        '''
-        #TODO
+# %%
+class SigmoidLayer(BaseLayer):
+    def __init__(self, input_size, output_size):
+        super().__init__(input_size, output_size)
+    
+    def activation(self, input_data):
+        return 1/(1 + np.exp(-input_data))
+    
+    def backward(self, grad_output, learning_rate):
+        grad_input = grad_output * self.output * (1 - self.output)
+        grad_weights = np.dot(self.input.T, grad_input)
+        self.weights -= learning_rate * grad_weights
+        return grad_input
+        
 
+# %%
+class ReluLayer(BaseLayer):
+    def __init__(self, input_size, output_size):
+        super().__init__(input_size, output_size)
+    
+    def activation(self, input_data):
+        return np.maximum(0.0, input_data)
+    
+    def backward(self, grad_output, learning_rate):
+        grad_relu = (self.output > 0).astype(float)
+        grad_input = grad_output * grad_relu
+        grad_w = np.dot(self.input.T, grad_input)
 
-class DTTree:
+        # Update weights
+        self.weights -= learning_rate * grad_w
 
-    def __init__(self):
-        #Tree root should be DTNode
-        self.root = None       
+        return grad_input
+        
 
-    def fit(self, X, y, types, max_depth = 10):
-        '''
-        Makes decision tree
-        Args:
-            X: numpy array of data [num_samples, num_features]
-            y: numpy array of classes [num_samples, 1]
-            types: list of [num_features] with types as: cat, cont
-                eg: if num_features = 4, and last 2 features are continious then
-                    types = ['cat','cat','cont','cont']
-            max_depth: maximum depth of tree
-        Returns:
-            None
-        '''
-        #TODO
+# %%
+class SoftPlusLayer(BaseLayer):
+    def __init__(self, input_size, output_size):
+        super().__init__(input_size, output_size)
+    
+    def activation(self, input_data):
+        return np.log(1+np.exp(input_data))
+    
+    def backward(self, grad_output, learning_rate=0.1):
+        exp_z = np.exp(np.dot(self.input, self.weights))
+        grad_input = grad_output * exp_z / (1 + exp_z)
+        grad_w = np.dot(self.input.T, grad_input)
 
+        self.weights -= learning_rate * grad_w
+
+        return grad_input
+
+# %%
+class SoftMaxLayer(BaseLayer):
+    def __init__(self, input_size, output_size):
+        super().__init__(input_size, output_size)
+    
+    def activation(self, input_data):
+        exp_input = np.exp(input_data - np.max(input_data, axis=1, keepdims=True))  # Numerical stability
+        return exp_input / np.sum(exp_input, axis=1, keepdims=True)
+    
+    def backward(self, grad_output, learning_rate=0.1):
+
+        grad_input = grad_output * self.output * (1 - self.output)
+
+        grad_w = np.dot(self.input.T, grad_input)
+
+        self.weights -= learning_rate * grad_w
+
+        weight_with_bias = self.weights[1:, :]
+        w_temp = np.dot(grad_input, weight_with_bias.T)
+
+        return w_temp
+
+# %%
+class NN:
+    def __init__(self, layers) -> None:
+        self.layers = layers
+    
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer.forward(x)
+        return x
+
+    def backward(self, grad , learning_rate=0.1):
+        for layer in reversed(self.layers):
+            grad = layer.backward(grad, learning_rate)
+        return grad
+
+    def cross_entropy_loss(self, output, target):
+        # epsilon = 1e-15  # Avoid log(0)
+        # output = np.clip(output, epsilon, 1 - epsilon)
+        return -np.sum(target * np.log(output)) / len(output)
+
+    def grad_cross_entropy_loss(self, output, target):
+        # epsilon = 1e-15
+        # output = np.clip(output, epsilon, 1 - epsilon)
+        return (output - target) # Len output divide check
+
+    def train(self, X_train, y_train, learning_rate=0.1, epochs=100, batch_size=32):
+        num_samples = X_train.shape[0]
+        for epoch in range(epochs):
+            indices = np.arange(num_samples)
+            np.random.shuffle(indices)
+            X_train_shuffled = X_train[indices]
+            y_train_shuffled = y_train[indices]
+
+            print(f"Epoch {epoch}: ")
+            
+            for i in range(0, num_samples, batch_size):
+                batch_X = X_train_shuffled[i:i + batch_size]
+                batch_y = y_train_shuffled[i:i + batch_size]
+                
+                output = self.forward(batch_X)
+                grad = self.grad_cross_entropy_loss(output, batch_y)
+
+                self.backward(grad, learning_rate)
+                
+            output = self.forward(X_train)
+            total_loss = self.cross_entropy_loss(output, y_train)
+
+            print(f"Epoch {epoch}: Loss {total_loss}")
+                
+            
+
+        
+        
+        # for epoch in range(epochs):
+            # output = self.forward(X)
+            # loss = self.cross_entropy_loss(output, Y)
+            # grad = self.grad_cross_entropy_loss(output, Y)
+            
+            # self.backward(grad, learning_rate)
+            
+            # if epoch % 10 == 0:
+            #     print(f"Epoch {epoch}: loss {loss:.3f}")
+    
     def __call__(self, X):
-        '''
-        Predicted classes for X
-        Args:
-            X: numpy array of data [num_samples, num_features]
-        Returns:
-            y: [num_samples, 1] predicted classes
-        '''
-        #TODO
+        return self.forward(X)
+
     
-    def post_prune(self, X_val, y_val):
-        #TODO
- 
 
-if __name__ == '__main__':
+# %%
 
-    #change the path if you want
-    X_train,y_train = get_np_array('train.csv')
-    X_test, y_test = get_np_array("test.csv")
+x_train_path = 'part_b/x_train.npy'
+y_train_path = 'part_b/y_train.npy'
 
-    #only needed in part (c)
-    X_val, y_val = get_np_array("val.csv")
+X_train, y_train = get_data(x_train_path, y_train_path)
 
-    types = ['cat','cat','cat',"cat","cat","cont","cat","cat","cat" ,"cont","cont" ,"cont" ]
-    while(len(types) != X.shape[1]):
-        types = ['cat'] + types
+x_test_path = 'part_b/x_test.npy'
+y_test_path = 'part_b/y_test.npy'
 
-    max_depth = 10
-    tree = DTTree()
-    tree.fit(X_train,y_train,types, max_depth = max_depth)
-    
-    #this is only applicable in part c
-    tree.post_prune(X_val, y_val)
-    
+X_test, y_test = get_data(x_test_path, y_test_path)
+
+#you might need one hot encoded y in part a,b,c,d,e
+label_encoder = OneHotEncoder(sparse_output = False)
+label_encoder.fit(np.expand_dims(y_train, axis = -1))
+
+y_train_onehot = label_encoder.transform(np.expand_dims(y_train, axis = -1))
+y_test_onehot = label_encoder.transform(np.expand_dims(y_test, axis = -1))
+
+# %%
+hidden_layer = 10
+
+nn = NN([
+    SigmoidLayer(1024, hidden_layer),
+    SoftMaxLayer(hidden_layer, 5)
+])
+
+# %%
+nn.train(X_train, y_train_onehot, 0.01, 20, 32)
+
+predictions = nn(X_test)
+
+predicted_classes = np.argmax(predictions, axis=1)
+actual_classes = np.argmax(y_test_onehot, axis=1)
+
+print(X_test.shape)
+print(predictions.shape)
+
+print(predicted_classes.shape)
+print(actual_classes.shape)
+# Compute precision, recall, and F1 scores for each class
+precision, recall, f1, _ = precision_recall_fscore_support(actual_classes, predicted_classes, average='macro')
+
+print(precision, recall, f1)
+# f1_scores.append(f1)
+
+
